@@ -1,0 +1,281 @@
+import React, { useState, useEffect, useMemo } from 'react';
+
+// --- CẤU HÌNH QUAN TRỌNG ---
+// ĐỊA CHỈ BACKEND ĐÃ ĐƯỢC CẬP NHẬT THEO YÊU CẦU CỦA BẠN.
+const API_BASE_URL = 'https://quan-ly-hs-backend-1.onrender.com';
+
+// --- CÁC BIỂU TƯỢNG (ICONS) DẠNG SVG ---
+const ClipboardIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>);
+const CheckIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>);
+const PlusCircleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>);
+const BookOpenIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>);
+const UsersIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>);
+const SpinnerIcon = () => (<svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>);
+
+
+// --- COMPONENT MODAL CHUNG ---
+const Modal = ({ children, onClose }) => (<div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4"><div className="bg-white rounded-lg shadow-xl w-full max-w-lg relative"><button onClick={onClose} className="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl font-bold">&times;</button><div className="p-6">{children}</div></div></div>);
+
+// --- COMPONENT FORM THÊM HỌC SINH ---
+const AddStudentForm = ({ onAddStudent, onClose }) => {
+  const [name, setName] = useState('');
+  const [dob, setDob] = useState('');
+  const handleSubmit = (e) => { e.preventDefault(); if (!name || !dob) { alert('Vui lòng nhập đầy đủ thông tin.'); return; } onAddStudent({ name, dob }); };
+  return (<form onSubmit={handleSubmit}><h2 className="text-2xl font-bold mb-4 text-center text-gray-700">Thêm Học Sinh Mới</h2><div className="space-y-4"><div><label className="block text-sm font-medium text-gray-600">Họ và tên</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="Nguyễn Văn A" /></div><div><label className="block text-sm font-medium text-gray-600">Ngày sinh</label><input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" /></div></div><div className="mt-6 flex justify-end space-x-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Hủy</button><button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Thêm Học Sinh</button></div></form>);
+};
+
+// --- COMPONENT FORM THÊM NHIỀU HỌC SINH ---
+const AddMultipleStudentsForm = ({ onAddStudents, onClose }) => {
+    const [inputText, setInputText] = useState('');
+    const [error, setError] = useState('');
+    const handleSubmit = (e) => {
+        e.preventDefault(); setError(''); const lines = inputText.trim().split('\n'); const newStudents = [];
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim(); if (!line) continue; const parts = line.split(',');
+            if (parts.length !== 2) { setError(`Lỗi định dạng ở dòng ${i + 1}.`); return; }
+            const name = parts[0].trim(); const dobString = parts[1].trim();
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(dobString)) { setError(`Lỗi định dạng ngày sinh ở dòng ${i + 1}.`); return; }
+            newStudents.push({ name, dob: dobString });
+        }
+        if (newStudents.length > 0) { onAddStudents(newStudents); } else { setError("Không có học sinh nào hợp lệ."); }
+    };
+    return (<form onSubmit={handleSubmit}><h2 className="text-2xl font-bold mb-4 text-center text-gray-700">Thêm nhiều Học sinh</h2><div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4"><p className="text-sm text-yellow-700">Dán danh sách, mỗi học sinh một dòng theo định dạng:<br /><strong className="font-mono">Họ và tên,YYYY-MM-DD</strong></p></div><textarea value={inputText} onChange={(e) => setInputText(e.target.value)} rows="10" className="w-full p-2 border border-gray-300 rounded-md font-mono" placeholder="Trần Văn Dũng,2018-03-20&#10;Phạm Thị Em,2018-09-05" />{error && <p className="text-red-500 text-sm mt-2">{error}</p>}<div className="mt-6 flex justify-end space-x-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Hủy</button><button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Thêm vào lớp</button></div></form>);
+};
+
+// --- COMPONENT FORM THÊM ĐÁNH GIÁ ---
+const AddAssessmentForm = ({ onAddAssessment, onClose, studentCount = 1, commonComments, onAddCommonComment }) => {
+  const subjects = ["Chung", "Tiếng Việt", "Toán", "Khoa học", "Lịch sử và Địa lí", "Công nghệ", "Đạo đức", "Hoạt động trải nghiệm", "Mỹ thuật", "Âm nhạc"];
+  const [type, setType] = useState('regular'); const [subject, setSubject] = useState(subjects[0]); const [comment, setComment] = useState(''); const [score, setScore] = useState(''); const [period, setPeriod] = useState('Giữa HK1'); const [newCommonComment, setNewCommonComment] = useState('');
+  const handleSubmit = (e) => { e.preventDefault(); const newAssessment = { type, subject, comment, date: new Date().toISOString().split('T')[0], ...(type === 'periodic' && { score: parseInt(score), period }) }; onAddAssessment(newAssessment); };
+  const handleQuickCommentClick = (quickComment) => { setComment(prev => prev ? `${prev}\n- ${quickComment}` : `- ${quickComment}`); };
+  const handleAddNewCommonComment = async () => { if (newCommonComment.trim()) { await onAddCommonComment(newCommonComment.trim()); setNewCommonComment(''); } };
+  return (<form onSubmit={handleSubmit}><h2 className="text-2xl font-bold mb-4 text-center text-gray-700">{studentCount > 1 ? `Đánh giá cho ${studentCount} học sinh` : 'Thêm Đánh Giá'}</h2><div className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="block text-sm font-medium text-gray-600">Loại</label><select value={type} onChange={(e) => setType(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"><option value="regular">Thường xuyên</option><option value="periodic">Định kỳ</option></select></div><div><label className="block text-sm font-medium text-gray-600">Môn học</label><select value={subject} onChange={(e) => setSubject(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">{subjects.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div>{type === 'periodic' && (<div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="block text-sm font-medium text-gray-600">Kỳ</label><select value={period} onChange={(e) => setPeriod(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"><option>Giữa HK1</option><option>Cuối HK1</option><option>Giữa HK2</option><option>Cuối HK2</option></select></div><div><label className="block text-sm font-medium text-gray-600">Điểm</label><input type="number" min="0" max="10" value={score} onChange={(e) => setScore(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" /></div></div>)}<div><label className="block text-sm font-medium text-gray-600">Nhận xét</label><textarea value={comment} onChange={(e) => setComment(e.target.value)} rows="4" className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea></div><div><label className="block text-sm font-medium text-gray-600">Nhận xét nhanh</label><div className="mt-2 flex flex-wrap gap-2">{commonComments.map((c, i) => (<button type="button" key={i} onClick={() => handleQuickCommentClick(c)} className="px-2 py-1 text-xs bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">{c}</button>))}</div></div><div><label className="block text-sm font-medium text-gray-600">Thêm nhận xét nhanh mới</label><div className="mt-1 flex gap-2"><input type="text" value={newCommonComment} onChange={e => setNewCommonComment(e.target.value)} className="flex-grow px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" /><button type="button" onClick={handleAddNewCommonComment} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">Thêm</button></div></div></div><div className="mt-6 flex justify-end space-x-3"><button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Hủy</button><button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Lưu</button></div></form>);
+};
+
+// --- COMPONENT BẢNG ĐIỀU KHIỂN CỦA GIÁO VIÊN ---
+const TeacherDashboard = ({ teacher, onSelectStudent, onLogout }) => {
+  const [classes, setClasses] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [commonComments, setCommonComments] = useState([]);
+  const [selectedClassId, setSelectedClassId] = useState(null);
+  const [copiedCode, setCopiedCode] = useState(null);
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showAddMultipleStudentsModal, setShowAddMultipleStudentsModal] = useState(false);
+  const [showBulkAssessmentModal, setShowBulkAssessmentModal] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [classesRes, commentsRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/teachers/${teacher.id}/classes`),
+          fetch(`${API_BASE_URL}/api/common-comments`)
+        ]);
+        const classesData = await classesRes.json();
+        const commentsData = await commentsRes.json();
+        setClasses(classesData);
+        setCommonComments(commentsData);
+        if (classesData.length > 0) {
+          setSelectedClassId(classesData[0].id);
+        } else {
+          setIsLoading(false);
+        }
+      } catch (error) { console.error("Lỗi tải dữ liệu ban đầu:", error); setIsLoading(false); }
+    };
+    fetchData();
+  }, [teacher.id]);
+
+  useEffect(() => {
+    if (!selectedClassId) return;
+    const fetchStudents = async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/classes/${selectedClassId}/students`);
+        const data = await res.json();
+        setStudents(data);
+      } catch (error) { console.error("Lỗi tải danh sách học sinh:", error); }
+      finally { setIsLoading(false); }
+    };
+    fetchStudents();
+    setSelectedStudentIds([]);
+  }, [selectedClassId]);
+
+  const handleCopyCode = (code) => { navigator.clipboard.writeText(code); setCopiedCode(code); setTimeout(() => setCopiedCode(null), 2000); };
+  
+  const handleAddStudent = async (studentData) => {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/students`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ ...studentData, classId: selectedClassId })
+        });
+        const newStudent = await res.json();
+        setStudents(prev => [...prev, newStudent]);
+        setShowAddStudentModal(false);
+    } catch (error) { console.error("Lỗi thêm học sinh:", error); }
+  };
+  
+  const handleAddMultipleStudents = async (studentsData) => {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/students/bulk`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ students: studentsData, classId: selectedClassId })
+        });
+        const newStudents = await res.json();
+        setStudents(prev => [...prev, ...newStudents]);
+        setShowAddMultipleStudentsModal(false);
+    } catch (error) { console.error("Lỗi thêm nhiều học sinh:", error); }
+  };
+
+  const handleSelectStudentCheckbox = (studentId, checked) => { setSelectedStudentIds(prev => checked ? [...prev, studentId] : prev.filter(id => id !== studentId)); };
+  const handleSelectAll = (checked) => { setSelectedStudentIds(checked ? students.map(s => s.id) : []); };
+  
+  const handleAddBulkAssessment = async (assessmentTemplate) => {
+      try {
+          await fetch(`${API_BASE_URL}/api/assessments/bulk`, {
+              method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ studentIds: selectedStudentIds, assessmentTemplate })
+          });
+          setShowBulkAssessmentModal(false);
+          setSelectedStudentIds([]);
+          // Optionally, show a success message
+      } catch (error) { console.error("Lỗi thêm đánh giá đồng loạt:", error); }
+  };
+  
+  const handleAddCommonComment = async (comment) => {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/common-comments`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ comment })
+        });
+        const newComments = await res.json();
+        setCommonComments(newComments);
+    } catch (error) { console.error("Lỗi thêm nhận xét nhanh:", error); }
+  };
+
+  return (
+    <div className="p-4 sm:p-6 md:p-8">
+      <header className="flex justify-between items-center mb-6 pb-4 border-b"><div><h1 className="text-3xl font-bold text-gray-800">Chào, {teacher.name}</h1><p className="text-gray-500">Bảng điều khiển quản lý lớp học</p></div><button onClick={onLogout} className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600">Đăng xuất</button></header>
+      <div className="mb-6"><label htmlFor="class-select" className="block text-sm font-medium text-gray-700 mb-2">Chọn lớp học:</label><select id="class-select" value={selectedClassId || ''} onChange={(e) => setSelectedClassId(Number(e.target.value))} className="block w-full max-w-xs px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">{classes.map(c => <option key={c.id} value={c.id}>{c.name} - {c.academicYear}</option>)}</select></div>
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="p-4 flex justify-between items-center bg-gray-50 border-b flex-wrap gap-2"><h2 className="text-xl font-semibold text-gray-700">Danh sách học sinh</h2><div className="flex gap-2 flex-wrap"><button onClick={() => setShowAddStudentModal(true)} className="flex items-center gap-2 px-3 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700"><PlusCircleIcon /> <span>Thêm 1 HS</span></button><button onClick={() => setShowAddMultipleStudentsModal(true)} className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"><UsersIcon /> <span>Thêm nhiều HS</span></button></div></div>
+        {selectedStudentIds.length > 0 && (<div className="p-3 bg-indigo-50 border-b flex justify-between items-center"><p className="text-sm font-medium text-indigo-700">Đã chọn {selectedStudentIds.length} học sinh</p><button onClick={() => setShowBulkAssessmentModal(true)} className="px-3 py-1 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Đánh giá đồng loạt</button></div>)}
+        <div className="overflow-x-auto">{isLoading ? <div className="p-8 text-center">Đang tải...</div> : <table className="min-w-full divide-y divide-gray-200"><thead className="bg-gray-50"><tr><th className="px-6 py-3 text-left"><input type="checkbox" onChange={e => handleSelectAll(e.target.checked)} checked={students.length > 0 && selectedStudentIds.length === students.length} className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" /></th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Họ và tên</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày sinh</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã truy cập PH</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th></tr></thead><tbody className="bg-white divide-y divide-gray-200">{students.map((student) => (<tr key={student.id} className={`hover:bg-gray-50 ${selectedStudentIds.includes(student.id) ? 'bg-indigo-50' : ''}`}><td className="px-6 py-4"><input type="checkbox" checked={selectedStudentIds.includes(student.id)} onChange={e => handleSelectStudentCheckbox(student.id, e.target.checked)} className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" /></td><td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{student.name}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(student.dob).toLocaleDateString('vi-VN')}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><div className="flex items-center gap-2"><span className="font-mono bg-gray-100 px-2 py-1 rounded">{student.parentAccessCode}</span><button onClick={() => handleCopyCode(student.parentAccessCode)} className="p-1.5 text-gray-500 hover:bg-gray-200 rounded-md">{copiedCode === student.parentAccessCode ? <CheckIcon /> : <ClipboardIcon />}</button></div></td><td className="px-6 py-4 whitespace-nowrap text-sm font-medium"><button onClick={() => onSelectStudent(student)} className="text-indigo-600 hover:text-indigo-900">Xem hồ sơ</button></td></tr>))}</tbody></table>}</div>
+      </div>
+      {showAddStudentModal && <Modal onClose={() => setShowAddStudentModal(false)}><AddStudentForm onAddStudent={handleAddStudent} onClose={() => setShowAddStudentModal(false)} /></Modal>}
+      {showAddMultipleStudentsModal && <Modal onClose={() => setShowAddMultipleStudentsModal(false)}><AddMultipleStudentsForm onAddStudents={handleAddMultipleStudents} onClose={() => setShowAddMultipleStudentsModal(false)} /></Modal>}
+      {showBulkAssessmentModal && <Modal onClose={() => setShowBulkAssessmentModal(false)}><AddAssessmentForm onAddAssessment={handleAddBulkAssessment} onClose={() => setShowBulkAssessmentModal(false)} studentCount={selectedStudentIds.length} commonComments={commonComments} onAddCommonComment={handleAddCommonComment} /></Modal>}
+    </div>
+  );
+};
+
+// --- COMPONENT HỒ SƠ HỌC SINH ---
+const StudentProfileView = ({ student, userType, onBack }) => {
+  const [assessments, setAssessments] = useState([]);
+  const [commonComments, setCommonComments] = useState([]);
+  const [showAddAssessmentModal, setShowAddAssessmentModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [assessmentsRes, commentsRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/students/${student.id}/assessments`),
+          fetch(`${API_BASE_URL}/api/common-comments`)
+        ]);
+        const assessmentsData = await assessmentsRes.json();
+        const commentsData = await commentsRes.json();
+        setAssessments(assessmentsData.sort((a, b) => new Date(b.date) - new Date(a.date)));
+        setCommonComments(commentsData);
+      } catch (error) { console.error("Lỗi tải dữ liệu hồ sơ:", error); }
+      finally { setIsLoading(false); }
+    };
+    fetchData();
+  }, [student.id]);
+
+  const handleAddAssessment = async (assessmentData) => {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/assessments`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...assessmentData, studentId: student.id })
+        });
+        const newAssessment = await res.json();
+        setAssessments(prev => [newAssessment, ...prev]);
+        setShowAddAssessmentModal(false);
+    } catch (error) { console.error("Lỗi thêm đánh giá:", error); }
+  };
+  
+  const handleAddCommonComment = async (comment) => {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/common-comments`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ comment })
+        });
+        const newComments = await res.json();
+        setCommonComments(newComments);
+    } catch (error) { console.error("Lỗi thêm nhận xét nhanh:", error); }
+  };
+
+  const AssessmentCard = ({ assessment }) => (<div className="bg-white rounded-lg shadow-md border border-gray-200 p-4"><div className="flex justify-between items-start"><div><p className={`font-bold text-lg ${assessment.type === 'periodic' ? 'text-blue-600' : 'text-green-600'}`}>{assessment.subject}</p><p className="text-sm text-gray-500">{new Date(assessment.date).toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p></div>{assessment.type === 'periodic' ? (<div className="text-right"><p className="text-2xl font-bold text-blue-600">{assessment.score}</p><p className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">{assessment.period}</p></div>) : ( <p className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full self-center">Thường xuyên</p> )}</div><p className="mt-3 text-gray-700">{assessment.comment}</p></div>);
+  
+  return (
+    <div className="p-4 sm:p-6 md:p-8">
+        <header className="flex justify-between items-center mb-6 pb-4 border-b"><div><h1 className="text-3xl font-bold text-gray-800">Hồ sơ học tập: {student.name}</h1><p className="text-gray-500">Ngày sinh: {new Date(student.dob).toLocaleDateString('vi-VN')}</p></div>{userType === 'teacher' ? (<button onClick={onBack} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Quay lại</button>) : (<button onClick={onBack} className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600">Đăng xuất</button>)}</header>
+        <div className="flex justify-between items-center mb-4"><h2 className="text-xl font-semibold text-gray-700">Dòng thời gian đánh giá</h2>{userType === 'teacher' && (<button onClick={() => setShowAddAssessmentModal(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"><PlusCircleIcon /><span>Thêm đánh giá</span></button>)}</div>
+        <div className="space-y-4">{isLoading ? <div className="text-center p-8">Đang tải đánh giá...</div> : assessments.length > 0 ? (assessments.map(a => <AssessmentCard key={a.id} assessment={a} />)) : (<p className="text-center text-gray-500 py-8">Chưa có đánh giá nào.</p>)}</div>
+        {showAddAssessmentModal && <Modal onClose={() => setShowAddAssessmentModal(false)}><AddAssessmentForm onAddAssessment={handleAddAssessment} onClose={() => setShowAddAssessmentModal(false)} commonComments={commonComments} onAddCommonComment={handleAddCommonComment} /></Modal>}
+    </div>
+  );
+};
+
+// --- CÁC TRANG ĐĂNG NHẬP ---
+const LoginPage = ({ onLogin, userType }) => {
+  const [username, setUsername] = useState(''); const [password, setPassword] = useState(''); const [accessCode, setAccessCode] = useState(''); const [error, setError] = useState(''); const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleSubmit = async (e) => {
+    e.preventDefault(); setError(''); setIsSubmitting(true);
+    try {
+        const success = await onLogin(userType === 'teacher' ? { username, password } : { accessCode });
+        if (!success) { setError(userType === 'teacher' ? 'Tên đăng nhập hoặc mật khẩu không đúng.' : 'Mã truy cập không hợp lệ.'); }
+    } catch (err) { setError('Đã có lỗi xảy ra. Vui lòng thử lại.'); }
+    finally { setIsSubmitting(false); }
+  };
+  const isTeacherLogin = userType === 'teacher';
+  return (<div className="w-full max-w-md"><div className="text-center mb-8"><BookOpenIcon className="mx-auto h-12 w-12 text-indigo-600" /><h2 className="mt-6 text-3xl font-extrabold text-gray-900">{isTeacherLogin ? 'Đăng nhập Giáo viên' : 'Sổ liên lạc Điện tử'}</h2><p className="mt-2 text-sm text-gray-600">{isTeacherLogin ? 'Vui lòng đăng nhập để quản lý' : 'Nhập mã truy cập do giáo viên cung cấp'}</p></div><form className="space-y-6" onSubmit={handleSubmit}>{isTeacherLogin ? (<><div><label className="block text-sm font-medium text-gray-700">Tên đăng nhập</label><input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" /></div><div><label className="block text-sm font-medium text-gray-700">Mật khẩu</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" /></div></>) : (<div><label className="block text-sm font-medium text-gray-700">Mã truy cập</label><input type="text" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" placeholder="VD: aK8!n#zPqR7@" /></div>)}{error && <p className="text-red-500 text-sm text-center">{error}</p>}<div><button type="submit" disabled={isSubmitting} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400">{isSubmitting ? <SpinnerIcon/> : (isTeacherLogin ? 'Đăng nhập' : 'Truy cập')}</button></div></form></div>);
+};
+
+// --- COMPONENT APP CHÍNH ---
+export default function App() {
+  const [view, setView] = useState('welcome');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+
+  const handleTeacherLogin = async ({ username, password }) => {
+    const res = await fetch(`${API_BASE_URL}/api/auth/teacher`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ username, password }) });
+    if (res.ok) { const teacher = await res.json(); setCurrentUser({ type: 'teacher', ...teacher }); setView('teacherDashboard'); return true; }
+    return false;
+  };
+
+  const handleParentLogin = async ({ accessCode }) => {
+    const res = await fetch(`${API_BASE_URL}/api/auth/parent`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ accessCode }) });
+    if (res.ok) { const student = await res.json(); setCurrentUser({ type: 'parent' }); setSelectedStudent(student); setView('studentProfile'); return true; }
+    return false;
+  };
+
+  const handleLogout = () => { setCurrentUser(null); setSelectedStudent(null); setView('welcome'); };
+  const handleSelectStudent = (student) => { setSelectedStudent(student); setView('studentProfile'); };
+  const handleBackToDashboard = () => { setSelectedStudent(null); setView('teacherDashboard'); };
+  
+  const renderView = () => {
+    switch (view) {
+      case 'teacherDashboard': return <TeacherDashboard teacher={currentUser} onSelectStudent={handleSelectStudent} onLogout={handleLogout} />;
+      case 'studentProfile': return <StudentProfileView student={selectedStudent} userType={currentUser.type} onBack={currentUser.type === 'teacher' ? handleBackToDashboard : handleLogout} />;
+      case 'teacherLogin': return <LoginPage onLogin={handleTeacherLogin} userType="teacher" />;
+      case 'parentLogin': return <LoginPage onLogin={handleParentLogin} userType="parent" />;
+      case 'welcome': default:
+        return (<div className="text-center"><BookOpenIcon className="mx-auto h-16 w-16 text-indigo-600" /><h1 className="mt-8 text-4xl font-extrabold text-gray-900">Hệ thống Sổ liên lạc Điện tử</h1><p className="mt-4 text-lg text-gray-600">Vui lòng chọn vai trò của bạn để tiếp tục.</p><div className="mt-10 flex flex-col sm:flex-row justify-center gap-4"><button onClick={() => setView('teacherLogin')} className="w-full sm:w-auto px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Tôi là Giáo viên</button><button onClick={() => setView('parentLogin')} className="w-full sm:w-auto px-8 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200">Tôi là Phụ huynh</button></div></div>);
+    }
+  };
+
+  return (<div className="min-h-screen bg-gray-50 font-sans text-gray-800"><main className={(view === 'welcome' || view.includes('Login')) ? 'flex items-center justify-center min-h-screen p-4' : ''}>{renderView()}</main></div>);
+}
